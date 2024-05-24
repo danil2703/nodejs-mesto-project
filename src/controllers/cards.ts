@@ -1,20 +1,21 @@
 import { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
+import { constants } from 'http2';
 import Card from '../models/card';
 import BadRequestError from '../errors/bad-request-error';
 import NotFoundError from '../errors/not-found-error';
 
-const { ValidationError } = mongoose.Error;
+const { ValidationError, CastError } = mongoose.Error;
 
 export const getCards = (req: Request, res: Response, next: NextFunction) => Card.find({ })
   .then((cards) => res.send(cards))
-  .catch((err) => next(err));
+  .catch(next);
 
 export const createCard = (req: Request, res: Response, next: NextFunction) => {
   const { name, link } = req.body;
 
-  return Card.create({ name, link, owner: res.locals.user?._id })
-    .then((card) => res.send(card))
+  return Card.create({ name, link, owner: res.locals.user._id })
+    .then((card) => res.status(constants.HTTP_STATUS_CREATED).send(card))
     .catch((err) => {
       if (err instanceof ValidationError) {
         next(new BadRequestError('Переданы некорректные данные при создании пользователя.'));
@@ -30,7 +31,13 @@ export const deleteCard = (req: Request, res: Response, next: NextFunction) => {
   return Card.findByIdAndDelete(cardId)
     .orFail(new NotFoundError('Карточка с указанным _id не найдена.'))
     .then((card) => res.send(card))
-    .catch((err) => next(err));
+    .catch((err) => {
+      if (err instanceof CastError) {
+        next(new BadRequestError('Передан некорректный id карточки.'));
+      } else {
+        next(err);
+      }
+    });
 };
 
 export const likeCard = (req: Request, res: Response, next: NextFunction) => {
@@ -47,6 +54,8 @@ export const likeCard = (req: Request, res: Response, next: NextFunction) => {
     .catch((err) => {
       if (err instanceof ValidationError) {
         next(new BadRequestError('Переданы некорректные данные для постановки лайка.'));
+      } else if (err instanceof CastError) {
+        next(new BadRequestError('Передан некорректный id карточки.'));
       } else {
         next(err);
       }
@@ -67,6 +76,8 @@ export const dislikeCard = (req: Request, res: Response, next: NextFunction) => 
     .catch((err) => {
       if (err instanceof ValidationError) {
         next(new BadRequestError('Переданы некорректные данные для снятия лайка.'));
+      } else if (err instanceof CastError) {
+        next(new BadRequestError('Передан некорректный id карточки.'));
       } else {
         next(err);
       }
