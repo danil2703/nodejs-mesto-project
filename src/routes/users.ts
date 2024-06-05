@@ -1,14 +1,16 @@
 import { Router } from 'express';
+import { celebrate } from 'celebrate';
 import {
-  createUser, getUserById, getUsers, updateAvatar, updateUser,
+  getCurrentUser, getUserById, getUsers, updateAvatar, updateUser,
 } from '../controllers/users';
+import { getUserByIdSchema, updateAvatarSchema, updateUserSchema } from '../validators/users';
 
 const usersRouter = Router();
 
 usersRouter.get('/', getUsers);
-usersRouter.get('/:userId', getUserById);
-usersRouter.post('/', createUser);
-usersRouter.patch('/me', updateUser);
-usersRouter.patch('/me/avatar', updateAvatar);
+usersRouter.get('/me', getCurrentUser);
+usersRouter.get('/:userId', celebrate(getUserByIdSchema), getUserById);
+usersRouter.patch('/me', celebrate(updateUserSchema), updateUser);
+usersRouter.patch('/me/avatar', celebrate(updateAvatarSchema), updateAvatar);
 
 export default usersRouter;

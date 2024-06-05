@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { constants } from 'http2';
+import ForbiddenError from '../errors/forbidden-error';
 import Card from '../models/card';
 import BadRequestError from '../errors/bad-request-error';
 import NotFoundError from '../errors/not-found-error';
@@ -27,10 +28,16 @@ export const createCard = (req: Request, res: Response, next: NextFunction) => {
 
 export const deleteCard = (req: Request, res: Response, next: NextFunction) => {
   const { cardId } = req.params;
+  const currentUserId = res.locals.user._id;
 
-  return Card.findByIdAndDelete(cardId)
+  return Card.findById(cardId)
     .orFail(new NotFoundError('Карточка с указанным _id не найдена.'))
-    .then((card) => res.send(card))
+    .then(async (card) => {
+      if (currentUserId !== card.owner) {
+        return next(new ForbiddenError('Вы не можете удалить эту карточку.'));
+      }
+      return Card.findByIdAndDelete(cardId).then(() => res.send(card));
+    })
     .catch((err) => {
       if (err instanceof CastError) {
         next(new BadRequestError('Передан некорректный id карточки.'));

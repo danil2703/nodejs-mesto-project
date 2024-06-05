@@ -1,9 +1,12 @@
 import { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { constants } from 'http2';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import User from '../models/user';
 import NotFoundError from '../errors/not-found-error';
 import BadRequestError from '../errors/bad-request-error';
+import ConflictError from '../errors/conflict-error';
 
 const { ValidationError, CastError } = mongoose.Error;
 
@@ -27,16 +30,25 @@ export const getUserById = (req: Request, res: Response, next: NextFunction) => 
 };
 
 export const createUser = (req: Request, res: Response, next: NextFunction) => {
-  const { name, about, avatar } = req.body;
+  const {
+    name, about, avatar, email, password,
+  } = req.body;
 
-  return User.create({ name, about, avatar })
-    .then((user) => res.status(constants.HTTP_STATUS_CREATED).send(user))
-    .catch((err) => {
-      if (err instanceof ValidationError) {
-        next(new BadRequestError(err.message));
-      } else {
-        next(err);
-      }
+  return bcrypt.hash(password, 10)
+    .then((hash) => {
+      User.create({
+        name, about, avatar, email, password: hash,
+      }).then((user) => res.status(constants.HTTP_STATUS_CREATED).send(user))
+        .catch((err) => {
+          const coflictMongooseErrorCode = 11000;
+          if (err instanceof ValidationError) {
+            return next(new BadRequestError(err.message));
+          }
+          if (err.code === coflictMongooseErrorCode) {
+            return next(new ConflictError('Данный email адрес уже зарегистрирован.'));
+          }
+          return next(err);
+        });
     });
 };
 
@@ -70,4 +82,24 @@ export const updateAvatar = (req: Request, res: Response, next: NextFunction) =>
         next(err);
       }
     });
+};
+
+export const getCurrentUser = (req: Request, res: Response, next: NextFunction) => {
+  const currentUserId = res.locals.user._id;
+
+  return User.findById(currentUserId)
+    .then((user) => res.send(user))
+    .catch(next);
+};
+
+export const login = (req: Request, res: Response, next: NextFunction) => {
+  const { email, password } = req.body;
+  const sevenDay = 3600000 * 24 * 7;
+  const secret = process.env.JWT_SECRET || 'some-secret-key';
+
+  return User.findUserByCredentials(email, password).then((user) => {
+    const token = jwt.sign({ _id: user._id }, secret, { expiresIn: '7d' });
+    res.cookie('jwt', token, { maxAge: sevenDay, httpOnly: true }).end();
+  })
+    .catch(next);
 };
