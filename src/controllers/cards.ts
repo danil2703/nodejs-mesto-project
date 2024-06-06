@@ -54,14 +54,12 @@ export const likeCard = (req: Request, res: Response, next: NextFunction) => {
   return Card.findByIdAndUpdate(
     cardId,
     { $addToSet: { likes: userId } },
-    { new: true, runValidators: true },
+    { new: true },
   )
     .orFail(new NotFoundError('Передан несуществующий _id карточки.'))
     .then((card) => res.send(card))
     .catch((err) => {
-      if (err instanceof ValidationError) {
-        next(new BadRequestError('Переданы некорректные данные для постановки лайка.'));
-      } else if (err instanceof CastError) {
+      if (err instanceof CastError) {
         next(new BadRequestError('Передан некорректный id карточки.'));
       } else {
         next(err);
@@ -76,14 +74,12 @@ export const dislikeCard = (req: Request, res: Response, next: NextFunction) => 
   return Card.findByIdAndUpdate(
     cardId,
     { $pull: { likes: userId } },
-    { new: true, runValidators: true },
+    { new: true },
   )
     .orFail(new NotFoundError('Передан несуществующий _id карточки.'))
     .then((card) => res.send(card))
     .catch((err) => {
-      if (err instanceof ValidationError) {
-        next(new BadRequestError('Переданы некорректные данные для снятия лайка.'));
-      } else if (err instanceof CastError) {
+      if (err instanceof CastError) {
         next(new BadRequestError('Передан некорректный id карточки.'));
       } else {
         next(err);

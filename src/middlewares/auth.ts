@@ -1,6 +1,7 @@
 import { NextFunction, Response, Request } from 'express';
 import jwt from 'jsonwebtoken';
 import UnauthorizedError from '../errors/unauthorized-error';
+import { JWT_SECRET } from '../environments';
 
 const authMiddleware = (
   req: Request,
@@ -8,7 +9,6 @@ const authMiddleware = (
   next: NextFunction,
 ) => {
   const token = req.cookies.jwt;
-  const secret = process.env.JWT_SECRET || 'some-secret-key';
 
   if (!token) {
     return next(new UnauthorizedError('Необходима авторизация.'));
@@ -17,7 +17,7 @@ const authMiddleware = (
   let payload;
 
   try {
-    payload = jwt.verify(token, secret);
+    payload = jwt.verify(token, JWT_SECRET);
   } catch (err) {
     return next(new UnauthorizedError('С токеном что-то не так.'));
   }

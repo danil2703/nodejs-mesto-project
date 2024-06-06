@@ -7,6 +7,7 @@ import User from '../models/user';
 import NotFoundError from '../errors/not-found-error';
 import BadRequestError from '../errors/bad-request-error';
 import ConflictError from '../errors/conflict-error';
+import { JWT_SECRET } from '../environments';
 
 const { ValidationError, CastError } = mongoose.Error;
 
@@ -52,11 +53,15 @@ export const createUser = (req: Request, res: Response, next: NextFunction) => {
     });
 };
 
-export const updateUser = (req: Request, res: Response, next: NextFunction) => {
-  const { name, about } = req.body;
+export const updateUserData = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  updateData: Record<string, string>,
+) => {
   const userId = res.locals.user._id;
 
-  return User.findByIdAndUpdate(userId, { name, about }, { new: true, runValidators: true })
+  User.findByIdAndUpdate(userId, updateData, { new: true, runValidators: true })
     .orFail(new NotFoundError('Пользователь с указанным _id не найден.'))
     .then((user) => res.send(user))
     .catch((err) => {
@@ -68,20 +73,14 @@ export const updateUser = (req: Request, res: Response, next: NextFunction) => {
     });
 };
 
+export const updateUser = (req: Request, res: Response, next: NextFunction) => {
+  const { name, about } = req.body;
+  updateUserData(req, res, next, { name, about });
+};
+
 export const updateAvatar = (req: Request, res: Response, next: NextFunction) => {
   const { avatar } = req.body;
-  const userId = res.locals.user._id;
-
-  return User.findByIdAndUpdate(userId, { avatar }, { new: true, runValidators: true })
-    .orFail(new NotFoundError('Пользователь с указанным _id не найден.'))
-    .then((user) => res.send(user))
-    .catch((err) => {
-      if (err instanceof ValidationError) {
-        next(new BadRequestError('Переданы некорректные данные при обновлении аватара.'));
-      } else {
-        next(err);
-      }
-    });
+  updateUserData(req, res, next, { avatar });
 };
 
 export const getCurrentUser = (req: Request, res: Response, next: NextFunction) => {
@@ -95,10 +94,9 @@ export const getCurrentUser = (req: Request, res: Response, next: NextFunction) 
 export const login = (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
   const sevenDay = 3600000 * 24 * 7;
-  const secret = process.env.JWT_SECRET || 'some-secret-key';
 
   return User.findUserByCredentials(email, password).then((user) => {
-    const token = jwt.sign({ _id: user._id }, secret, { expiresIn: '7d' });
+    const token = jwt.sign({ _id: user._id }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('jwt', token, { maxAge: sevenDay, httpOnly: true }).end();
   })
     .catch(next);
